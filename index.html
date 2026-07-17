@@ -114,9 +114,9 @@
 
     /* Card de incidente = SANFONA (details/summary): fechado mostra só título + status atual + meta
        (hora resolvida OU previsão de término); aberto revela a timeline completa das atualizações.
-       overflow visível pra não comer o L dos cantos; L cinza (registro narrativo, não destaque). */
+       overflow visível pra não comer o L; L cinza escuro/neutro (16% do foreground). */
     .incident { padding: 0; margin-bottom: 12px; overflow: visible; }
-    .incident::before, .incident::after { border-color: var(--muted-foreground); }
+    .incident::before, .incident::after { border-color: color-mix(in srgb, var(--foreground) 16%, transparent); }
     .incident-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
     .incident-head::-webkit-details-marker { display: none; }
     .incident-headline { flex: 1; min-width: 0; }
