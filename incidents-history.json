@@ -1,0 +1,502 @@
+[
+  {
+    "id": "hist-2026-07-09",
+    "kind": "incident",
+    "title": "Feed CVE desatualizado",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "feed_cve"
+    ],
+    "startedAt": 1783584900,
+    "resolvedAt": 1783616700,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Sincronização do catálogo de vulnerabilidades atrasada.",
+        "createdAt": 1783584900
+      },
+      {
+        "status": "monitoring",
+        "body": "Sync forçado concluído; cache reconstruído.",
+        "createdAt": 1783588020
+      },
+      {
+        "status": "resolved",
+        "body": "Feed novamente dentro da janela de frescor.",
+        "createdAt": 1783616700
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-07-07-blip",
+    "kind": "incident",
+    "title": "Job diário atrasado",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "cron"
+    ],
+    "startedAt": 1783422600,
+    "resolvedAt": 1783426500,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Job diário iniciou fora da janela usual.",
+        "createdAt": 1783422600
+      },
+      {
+        "status": "monitoring",
+        "body": "Acompanhando as próximas sondas externas.",
+        "createdAt": 1783423860
+      },
+      {
+        "status": "resolved",
+        "body": "Concluído sem impacto em clientes.",
+        "createdAt": 1783426500
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-07-02-maint",
+    "kind": "maintenance",
+    "title": "Ajuste do monitor sintético",
+    "status": "completed",
+    "components": [
+      "site"
+    ],
+    "scheduledFor": 1783027800,
+    "scheduledUntil": 1783032000,
+    "resolvedAt": 1783032000,
+    "updates": [
+      {
+        "status": "scheduled",
+        "body": "Reconfiguração do monitor do site público.",
+        "createdAt": 1782973800
+      },
+      {
+        "status": "in_progress",
+        "body": "Manutenção em andamento conforme o plano.",
+        "createdAt": 1783027800
+      },
+      {
+        "status": "verifying",
+        "body": "Validando sondas pós-manutenção.",
+        "createdAt": 1783030740
+      },
+      {
+        "status": "completed",
+        "body": "Janela encerrada. Componentes operacionais.",
+        "createdAt": 1783032000
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-07-01",
+    "kind": "incident",
+    "title": "Performance degradada no site público",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "site"
+    ],
+    "startedAt": 1782899400,
+    "resolvedAt": 1782918600,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Monitor sintético do site com falhas intermitentes.",
+        "createdAt": 1782899400
+      },
+      {
+        "status": "identified",
+        "body": "Causa isolada via telemetria da plataforma.",
+        "createdAt": 1782900660
+      },
+      {
+        "status": "monitoring",
+        "body": "Rota de edge estabilizada.",
+        "createdAt": 1782903180
+      },
+      {
+        "status": "resolved",
+        "body": "Monitor verde de forma contínua.",
+        "createdAt": 1782918600
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-06-25-blip",
+    "kind": "incident",
+    "title": "Alerta com retentativa",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "alertas"
+    ],
+    "startedAt": 1782402000,
+    "resolvedAt": 1782405300,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Notificação exigiu retentativa no provedor.",
+        "createdAt": 1782402000
+      },
+      {
+        "status": "resolved",
+        "body": "Entrega confirmada na segunda tentativa.",
+        "createdAt": 1782405300
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-06-16",
+    "kind": "incident",
+    "title": "Ingestão com atraso pontual",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "ingestao"
+    ],
+    "startedAt": 1781570100,
+    "resolvedAt": 1781610000,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Parte da frota com last_seen envelhecendo.",
+        "createdAt": 1781570100
+      },
+      {
+        "status": "identified",
+        "body": "Causa isolada via telemetria da plataforma.",
+        "createdAt": 1781571600
+      },
+      {
+        "status": "monitoring",
+        "body": "Gargalo no endpoint de push; limite ajustado.",
+        "createdAt": 1781574780
+      },
+      {
+        "status": "resolved",
+        "body": "Push fresco restabelecido na frota ativa.",
+        "createdAt": 1781610000
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-06-11-maint",
+    "kind": "maintenance",
+    "title": "Rotação de infraestrutura de ingestão",
+    "status": "completed",
+    "components": [
+      "ingestao"
+    ],
+    "scheduledFor": 1781142300,
+    "scheduledUntil": 1781148000,
+    "resolvedAt": 1781148000,
+    "updates": [
+      {
+        "status": "scheduled",
+        "body": "Migração breve do caminho de push.",
+        "createdAt": 1781081100
+      },
+      {
+        "status": "in_progress",
+        "body": "Manutenção em andamento conforme o plano.",
+        "createdAt": 1781142300
+      },
+      {
+        "status": "verifying",
+        "body": "Validando sondas pós-manutenção.",
+        "createdAt": 1781146620
+      },
+      {
+        "status": "completed",
+        "body": "Janela encerrada. Componentes operacionais.",
+        "createdAt": 1781148000
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-06-03-blip",
+    "kind": "incident",
+    "title": "Atraso curto na ingestão",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "ingestao"
+    ],
+    "startedAt": 1780477500,
+    "resolvedAt": 1780479180,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Lote de push demorou acima do habitual.",
+        "createdAt": 1780477500
+      },
+      {
+        "status": "resolved",
+        "body": "Fila limpa; frota em dia.",
+        "createdAt": 1780479180
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-30",
+    "kind": "incident",
+    "title": "Instabilidade no cron da plataforma",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "cron"
+    ],
+    "startedAt": 1780104000,
+    "resolvedAt": 1780134600,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Jobs de 5 minutos atrasando além do limiar.",
+        "createdAt": 1780104000
+      },
+      {
+        "status": "monitoring",
+        "body": "Scheduler recuperado após reinício controlado.",
+        "createdAt": 1780106760
+      },
+      {
+        "status": "resolved",
+        "body": "Cadência dos jobs dentro do esperado.",
+        "createdAt": 1780134600
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-22-maint",
+    "kind": "maintenance",
+    "title": "Manutenção do agendador",
+    "status": "completed",
+    "components": [
+      "cron"
+    ],
+    "scheduledFor": 1779459600,
+    "scheduledUntil": 1779468000,
+    "resolvedAt": 1779468000,
+    "updates": [
+      {
+        "status": "scheduled",
+        "body": "Reinício controlado do scheduler para patch.",
+        "createdAt": 1779398400
+      },
+      {
+        "status": "in_progress",
+        "body": "Manutenção em andamento conforme o plano.",
+        "createdAt": 1779459600
+      },
+      {
+        "status": "verifying",
+        "body": "Validando sondas pós-manutenção.",
+        "createdAt": 1779467040
+      },
+      {
+        "status": "completed",
+        "body": "Janela encerrada. Componentes operacionais.",
+        "createdAt": 1779468000
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-16",
+    "kind": "incident",
+    "title": "Degradação parcial dos alertas",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "alertas"
+    ],
+    "startedAt": 1778892000,
+    "resolvedAt": 1778926500,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Taxa de entrega de alertas abaixo do esperado.",
+        "createdAt": 1778892000
+      },
+      {
+        "status": "resolved",
+        "body": "Entrega estável nas últimas horas.",
+        "createdAt": 1778926500
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-12-blip",
+    "kind": "incident",
+    "title": "Timeout esporádico no site",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "site"
+    ],
+    "startedAt": 1778594100,
+    "resolvedAt": 1778596020,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Uma sonda do site excedeu o tempo limite.",
+        "createdAt": 1778594100
+      },
+      {
+        "status": "resolved",
+        "body": "Ruído de rede; próximas sondas ok.",
+        "createdAt": 1778596020
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-06-maint",
+    "kind": "maintenance",
+    "title": "Atualização preventiva do painel",
+    "status": "completed",
+    "components": [
+      "painel"
+    ],
+    "scheduledFor": 1778037000,
+    "scheduledUntil": 1778040300,
+    "resolvedAt": 1778040300,
+    "updates": [
+      {
+        "status": "scheduled",
+        "body": "Janela para atualização de dependências do painel.",
+        "createdAt": 1777983000
+      },
+      {
+        "status": "in_progress",
+        "body": "Manutenção em andamento conforme o plano.",
+        "createdAt": 1778037000
+      },
+      {
+        "status": "verifying",
+        "body": "Validando sondas pós-manutenção.",
+        "createdAt": 1778038620
+      },
+      {
+        "status": "completed",
+        "body": "Janela encerrada. Componentes operacionais.",
+        "createdAt": 1778040300
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-05-01",
+    "kind": "incident",
+    "title": "Latência elevada no painel",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "painel"
+    ],
+    "startedAt": 1777612200,
+    "resolvedAt": 1777637100,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Clientes reportaram lentidão ao abrir o dashboard.",
+        "createdAt": 1777612200
+      },
+      {
+        "status": "resolved",
+        "body": "Latência normalizada nas sondas externas.",
+        "createdAt": 1777637100
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-04-28-blip",
+    "kind": "incident",
+    "title": "Instabilidade pontual resolvida",
+    "impact": "minor",
+    "status": "resolved",
+    "components": [
+      "painel"
+    ],
+    "startedAt": 1777372800,
+    "resolvedAt": 1777375680,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Pico breve de latência nas sondas do painel.",
+        "createdAt": 1777372800
+      },
+      {
+        "status": "resolved",
+        "body": "Sem recorrência nas sondas seguintes.",
+        "createdAt": 1777375680
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-04-21",
+    "kind": "incident",
+    "title": "Queda prolongada da ingestão e painel",
+    "impact": "major",
+    "status": "resolved",
+    "components": [
+      "painel",
+      "ingestao"
+    ],
+    "startedAt": 1776733500,
+    "resolvedAt": 1776801300,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Push da frota acumulando atraso; painel intermitente.",
+        "createdAt": 1776733500
+      },
+      {
+        "status": "identified",
+        "body": "Saturação no caminho de escrita do banco da plataforma.",
+        "createdAt": 1776745200
+      },
+      {
+        "status": "resolved",
+        "body": "Capacidade reforçada e fila drenada. Sem residual.",
+        "createdAt": 1776801300
+      }
+    ]
+  },
+  {
+    "id": "hist-2026-04-19",
+    "kind": "incident",
+    "title": "Interrupção no painel e automações",
+    "impact": "major",
+    "status": "resolved",
+    "components": [
+      "painel",
+      "cron"
+    ],
+    "startedAt": 1776559680,
+    "resolvedAt": 1776634800,
+    "updates": [
+      {
+        "status": "investigating",
+        "body": "Sondas externas perderam /health e o painel deixou de responder.",
+        "createdAt": 1776559680
+      },
+      {
+        "status": "identified",
+        "body": "Falha correlacionada ao worker de orquestração após deploy.",
+        "createdAt": 1776564600
+      },
+      {
+        "status": "monitoring",
+        "body": "Rollback aplicado; recuperando sondas de forma gradual.",
+        "createdAt": 1776589500
+      },
+      {
+        "status": "resolved",
+        "body": "Serviço estável. Post-mortem interno aberto.",
+        "createdAt": 1776634800
+      }
+    ]
+  }
+]

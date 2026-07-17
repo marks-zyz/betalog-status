@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111113">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%232997ff'%3E%3Cpath d='M240,128a8,8,0,0,1-8,8H204.94l-37.78,75.58A8,8,0,0,1,160,216h-.4a8,8,0,0,1-7.08-5.14L95.35,60.76,63.28,131.31A8,8,0,0,1,56,136H24a8,8,0,0,1,0-16H50.85L88.72,36.69a8,8,0,0,1,14.76.46l57.51,151,31.85-63.71A8,8,0,0,1,200,120h32A8,8,0,0,1,240,128Z'/%3E%3C/svg%3E">
+  <title>Status do sistema · BetaLog</title>
+  <meta name="description" content="Status em tempo real dos componentes do BetaLog: painel, ingestão, verificações e mais.">
+  <script>
+    (() => { let s = null; try { s = localStorage.getItem("betalog:theme"); } catch (e) {}
+      const dark = s ? s !== "light" : true; const el = document.documentElement;
+      el.classList.add(dark ? "dark" : "light"); el.classList.remove(dark ? "light" : "dark");
+      el.style.colorScheme = dark ? "dark" : "light"; })();
+  </script>
+  <style>
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+      --bp-radius: 3px; --lp-col-w: min(760px, 100vw - 32px);
+    }
+    .dark {
+      color-scheme: dark;
+      --background: rgb(17 17 19); --foreground: rgb(242 242 244); --card: rgb(24 24 26);
+      --muted-foreground: rgb(255 255 255 / 0.6); --border: rgb(255 255 255 / 0.09);
+      --primary: rgb(41 151 255); --ok: rgb(48 209 88); --warn: rgb(255 146 48); --crit: rgb(255 66 69); --off: rgb(142 142 147);
+      --bp-dot: color-mix(in srgb, var(--foreground) 13%, transparent);
+      --skel: rgb(255 255 255 / 0.07); --skel-hi: rgb(255 255 255 / 0.13);
+      --app-background: radial-gradient(circle at 28% -12%, rgb(255 255 255 / 0.055), transparent 32rem), linear-gradient(180deg, rgb(20 20 22) 0%, rgb(15 15 17) 48%, rgb(17 17 19) 100%);
+      --shadow-neo: 0 1px 1px rgb(0 0 0 / 0.28), 0 18px 56px -44px rgb(0 0 0 / 0.95);
+    }
+    .light {
+      color-scheme: light;
+      --background: rgb(247 248 250); --foreground: rgb(29 29 31); --card: rgb(255 255 255 / 0.98);
+      --muted-foreground: rgb(0 0 0 / 0.6); --border: rgb(60 60 67 / 0.14);
+      --primary: rgb(0 122 255); --ok: rgb(52 199 89); --warn: rgb(255 141 40); --crit: rgb(255 56 60); --off: rgb(142 142 147);
+      --bp-dot: color-mix(in srgb, var(--foreground) 13%, transparent);
+      --skel: rgb(0 0 0 / 0.06); --skel-hi: rgb(0 0 0 / 0.11);
+      --app-background: linear-gradient(180deg, rgb(255 255 255) 20%, rgb(231 234 238) 100%);
+      --shadow-neo: inset 0 0 0 0.5px rgb(255 255 255 / 0.7), 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 16px -6px rgb(0 0 0 / 0.12);
+    }
+    * { box-sizing: border-box; }
+    html { font-family: var(--font-sans); background: var(--background); scrollbar-gutter: stable; }
+    body { margin: 0; min-height: 100vh; background: var(--app-background); background-attachment: fixed; color: var(--foreground); -webkit-font-smoothing: antialiased; position: relative; isolation: isolate; }
+    /* Fundo blueprint: pontos só nas calhas + guias tracejadas nas bordas da coluna (~1300px). */
+    body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image: radial-gradient(circle, var(--bp-dot) 1px, transparent 1px); background-size: 22px 22px;
+      -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(50% - 400px), transparent calc(50% - 380px), transparent calc(50% + 380px), #000 calc(50% + 400px), #000 100%);
+              mask-image: linear-gradient(90deg, #000 0, #000 calc(50% - 400px), transparent calc(50% - 380px), transparent calc(50% + 380px), #000 calc(50% + 400px), #000 100%); }
+    body::after { content: ""; position: fixed; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: var(--lp-col-w); z-index: -1; pointer-events: none;
+      border-left: 1px dashed color-mix(in srgb, var(--foreground) 9%, transparent); border-right: 1px dashed color-mix(in srgb, var(--foreground) 9%, transparent); }
+    @media (max-width: 820px) { body::before, body::after { display: none; } }
+    h1, h2 { text-wrap: balance; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
+    p { text-wrap: pretty; }
+    :where(button):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+
+    .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 400; color: var(--foreground); }
+    .brand strong { font-weight: 700; }
+    .brand .phicon { color: var(--primary); width: 22px; height: 22px; }
+    .toggle { width: 34px; height: 34px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 4%, transparent); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--foreground); padding: 0; }
+    .toggle .icon-sun { display: none; } .dark .toggle .icon-sun { display: block; } .dark .toggle .icon-moon { display: none; }
+    .toggle svg { width: 16px; height: 16px; }
+
+    /* Card blueprint: cantos quase retos + ticks em L (topo-esq / baixo-dir).
+       L fica em 0/0 (DENTRO da borda) — em -1px o overflow:hidden de sanfona/lista comia o traço. */
+    .bp { position: relative; border: 1px solid var(--border); border-radius: var(--bp-radius); background: var(--card); box-shadow: var(--shadow-neo); }
+    .bp::before, .bp::after { content: ""; position: absolute; z-index: 1; width: 10px; height: 10px; border: 0 solid var(--primary); pointer-events: none; }
+    .bp::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+    .bp::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+    .banner { padding: 20px 22px; display: flex; align-items: center; gap: 14px; margin-bottom: 8px; transition: background-color .3s ease; }
+    .banner[data-lvl="none"] { background: color-mix(in srgb, var(--ok) 11%, var(--card)); }
+    .banner[data-lvl="none"]::before, .banner[data-lvl="none"]::after { border-color: var(--ok); }
+    .banner[data-lvl="minor"], .banner[data-lvl="stale"] { background: color-mix(in srgb, var(--warn) 11%, var(--card)); }
+    .banner[data-lvl="minor"]::before, .banner[data-lvl="minor"]::after,
+    .banner[data-lvl="stale"]::before, .banner[data-lvl="stale"]::after { border-color: var(--warn); }
+    .banner[data-lvl="major"], .banner[data-lvl="critical"] { background: color-mix(in srgb, var(--crit) 11%, var(--card)); }
+    .banner[data-lvl="major"]::before, .banner[data-lvl="major"]::after,
+    .banner[data-lvl="critical"]::before, .banner[data-lvl="critical"]::after { border-color: var(--crit); }
+    .banner .picon { flex: 0 0 auto; display: flex; }
+    .banner .picon svg { width: 28px; height: 28px; }
+    .banner[data-lvl="none"] .picon { color: var(--ok); }
+    .banner[data-lvl="minor"] .picon, .banner[data-lvl="stale"] .picon { color: var(--warn); }
+    .banner[data-lvl="major"] .picon, .banner[data-lvl="critical"] .picon { color: var(--crit); }
+    .banner[data-lvl="maintenance"] { background: color-mix(in srgb, var(--primary) 11%, var(--card)); }
+    .banner[data-lvl="maintenance"]::before, .banner[data-lvl="maintenance"]::after { border-color: var(--primary); }
+    .banner[data-lvl="maintenance"] .picon { color: var(--primary); }
+    .banner h1 { font-size: 18px; }
+    .banner .sub { margin: 3px 0 0; font-size: 13px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+    @media (prefers-reduced-motion: reduce) { .skel::after { animation: none; } .uptime-bars > i, .banner, .pill { transition: none; } }
+
+    .section { margin-top: 34px; }
+    .section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted-foreground); margin: 0 0 10px; font-weight: 600; }
+
+    .comp-list { overflow: visible; }
+    .comp-list > .comp-row:first-child { border-radius: var(--bp-radius) var(--bp-radius) 0 0; }
+    .comp-list > .comp-row:last-child { border-radius: 0 0 var(--bp-radius) var(--bp-radius); }
+    .comp-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); gap: 12px; }
+    .comp-row:last-child { border-bottom: none; }
+    .comp-name { font-size: 14px; font-weight: 550; }
+    .comp-detail { font-size: 12px; color: var(--muted-foreground); margin-top: 1px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 4px 10px 4px 8px; border-radius: 999px; white-space: nowrap; color: var(--off); background: color-mix(in srgb, var(--off) 14%, transparent); }
+    .pill svg { width: 13px; height: 13px; }
+    .pill[data-s="operational"] { color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+    .pill[data-s="degraded_performance"] { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+    .pill[data-s="partial_outage"], .pill[data-s="major_outage"] { color: var(--crit); background: color-mix(in srgb, var(--crit) 16%, transparent); }
+    .pill[data-s="under_maintenance"] { color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--muted-foreground); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+    /* Card de incidente = SANFONA (details/summary): fechado mostra só título + status atual + meta
+       (hora resolvida OU previsão de término); aberto revela a timeline completa das atualizações.
+       overflow visível pra não comer o L dos cantos; L cinza (registro narrativo, não destaque). */
+    .incident { padding: 0; margin-bottom: 12px; overflow: visible; }
+    .incident::before, .incident::after { border-color: var(--muted-foreground); }
+    .incident-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+    .incident-head::-webkit-details-marker { display: none; }
+    .incident-headline { flex: 1; min-width: 0; }
+    .incident-title { font-size: 14.5px; font-weight: 600; }
+    .incident-meta { font-size: 12.5px; color: var(--muted-foreground); margin-top: 3px; }
+    .incident-head .chevron { width: 15px; height: 15px; color: var(--muted-foreground); flex: 0 0 auto; transition: transform .2s ease; }
+    .incident[open] .incident-head .chevron { transform: rotate(180deg); }
+    .badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 999px; white-space: nowrap; flex: 0 0 auto; }
+    .badge.open { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+    .badge.maint { color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); }
+    .badge.resolved { color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+    .incident-body { padding: 2px 18px 18px; border-top: 1px solid var(--border); }
+    .incident-comps { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
+    .comp-chip { font-size: 11.5px; color: var(--muted-foreground); background: color-mix(in srgb, var(--foreground) 6%, transparent); padding: 3px 9px; border-radius: 999px; }
+    .timeline { position: relative; padding-left: 20px; margin-top: 14px; }
+    .timeline::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+    .tl-item { position: relative; padding-bottom: 14px; }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-dot { position: absolute; left: -20px; top: 4px; width: 9px; height: 9px; border-radius: 999px; background: var(--muted-foreground); box-shadow: 0 0 0 3px var(--card); }
+    .tl-item:first-child .tl-dot { background: var(--primary); }
+    .tl-content { font-size: 13px; color: var(--foreground); }
+    .tl-content b { font-weight: 600; }
+    .tl-time { display: block; font-size: 11.5px; color: var(--muted-foreground); margin-top: 3px; }
+    .empty { text-align: center; padding: 26px 16px; color: var(--muted-foreground); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .empty svg { width: 22px; height: 22px; color: var(--ok); }
+
+    /* Disponibilidade — faixa de 90 dias (sondas externas de /health, via GitHub Action). */
+    .uptime-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .uptime-head h2 { margin: 0; }
+    .uptime-pct { font-size: 12.5px; font-weight: 650; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .uptime-card { padding: 16px; }
+    /* gap visual via padding+background-clip: o "vão" faz parte do hit-area (sem piscada). */
+    .uptime-bars { display: flex; gap: 0; height: 34px; align-items: stretch; }
+    .uptime-bars > i {
+      flex: 1 1 0; min-width: 0; padding: 0 1px; box-sizing: border-box;
+      border-radius: 1px; cursor: pointer; position: relative;
+      background-color: color-mix(in srgb, var(--off) 28%, transparent);
+      background-clip: content-box;
+      transition: background-color .3s ease, filter .12s ease;
+    }
+    .uptime-bars > i:first-child { padding-left: 0; }
+    .uptime-bars > i:last-child { padding-right: 0; }
+    .uptime-bars > i[data-d="ok"] { background-color: var(--ok); }
+    .uptime-bars > i[data-d="warn"] { background-color: var(--warn); }
+    .uptime-bars > i[data-d="crit"] { background-color: var(--crit); }
+    .uptime-bars > i.is-hot { filter: brightness(1.15); z-index: 1; }
+    .uptime-scale { display: flex; justify-content: space-between; margin-top: 9px; font-size: 11px; color: var(--muted-foreground); }
+
+    /* Tooltip único: translada entre barras (sem hide/show → sem piscada). */
+    .uptime-tip {
+      position: fixed; z-index: 40; min-width: 220px; max-width: 300px;
+      padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card); box-shadow: var(--shadow-neo);
+      pointer-events: none; opacity: 0;
+      transition: opacity .12s ease, left .1s ease, top .1s ease;
+      font-size: 12.5px; color: var(--foreground);
+    }
+    .uptime-tip.on { opacity: 1; }
+    /* Caret: setinha apontando PRA CIMA, pra barra referenciada (tooltip sempre abaixo da barra). */
+    .uptime-tip .tip-caret { position: absolute; top: -6px; width: 11px; height: 11px; background: var(--card); border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: translateX(-50%) rotate(45deg); }
+    .uptime-tip .tip-date { font-weight: 650; font-size: 13px; margin-bottom: 6px; }
+    .uptime-tip .tip-status { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 4px; }
+    .uptime-tip .tip-status[data-d="ok"] { color: var(--ok); }
+    .uptime-tip .tip-status[data-d="warn"] { color: var(--warn); }
+    .uptime-tip .tip-status[data-d="crit"] { color: var(--crit); }
+    .uptime-tip .tip-status[data-d="off"] { color: var(--off); }
+    .uptime-tip .tip-status svg { width: 13px; height: 13px; flex: 0 0 auto; }
+    .uptime-tip .tip-pct { color: var(--muted-foreground); font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+    .uptime-tip .tip-occ-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 6px; }
+    .uptime-tip .tip-occ { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow: hidden; }
+    .uptime-tip .tip-occ-item { display: flex; gap: 8px; align-items: flex-start; }
+    .uptime-tip .tip-occ-dot { width: 7px; height: 7px; border-radius: 999px; margin-top: 4px; flex: 0 0 auto; background: var(--crit); }
+    .uptime-tip .tip-occ-dot.warn { background: var(--warn); }
+    .uptime-tip .tip-occ-dot.maint { background: var(--primary); }
+    .uptime-tip .tip-occ-body { flex: 1; min-width: 0; }
+    .uptime-tip .tip-occ-body b { font-weight: 600; display: block; }
+    .uptime-tip .tip-occ-body span { display: block; color: var(--muted-foreground); font-size: 11.5px; margin-top: 1px; font-variant-numeric: tabular-nums; }
+    .uptime-tip .tip-empty { color: var(--muted-foreground); }
+
+    /* Anti-CLS: altura reservada EXATA — skeleton e linha populada ocupam o mesmo espaço. */
+    .comp-row { min-height: 64px; }
+    .banner { min-height: 84px; }
+    .banner .picon { width: 28px; justify-content: center; }
+    /* Stale: o pill NÃO afirma verde quando o dado não pôde ser confirmado — vira cinza "não confirmado". */
+    .comp-row.stale .pill { color: var(--off); background: color-mix(in srgb, var(--off) 13%, transparent); }
+
+    /* Skeleton monocromático — cinza neutro, SEM cor de status e SEM texto, até o dado chegar. */
+    .skel { position: relative; overflow: hidden; background: var(--skel); border-radius: var(--bp-radius); }
+    .skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, var(--skel-hi), transparent); animation: sweep 1.4s ease-in-out infinite; }
+    @keyframes sweep { 100% { transform: translateX(100%); } }
+    .sk-line { height: 13px; }
+    .loading .banner { background: var(--card); }
+    .loading .banner .picon, .loading .banner h1, .loading .banner .sub { visibility: hidden; }
+  </style>
+</head>
+<body class="loading">
+  <div class="wrap">
+    <header class="hdr">
+      <div class="brand">
+        <svg class="phicon" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M240,128a8,8,0,0,1-8,8H204.94l-37.78,75.58A8,8,0,0,1,160,216h-.4a8,8,0,0,1-7.08-5.14L95.35,60.76,63.28,131.31A8,8,0,0,1,56,136H24a8,8,0,0,1,0-16H50.85L88.72,36.69a8,8,0,0,1,14.76.46l57.51,151,31.85-63.71A8,8,0,0,1,200,120h32A8,8,0,0,1,240,128Z"></path></svg>
+        <span class="wordmark">Beta<strong>Log</strong></span>
+      </div>
+      <button class="toggle" id="themeToggle" aria-label="Alternar tema">
+        <svg class="icon-sun" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"></path></svg>
+        <svg class="icon-moon" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"></path></svg>
+      </button>
+    </header>
+
+    <div class="bp banner" id="banner" data-lvl="none" role="status" aria-live="polite">
+      <span class="picon" id="bannerIcon"></span>
+      <div><h1 id="bannerTitle">&nbsp;</h1><p class="sub" id="bannerSub">&nbsp;</p></div>
+    </div>
+
+    <section class="section">
+      <div class="uptime-head">
+        <h2 id="uptimeTitle">Disponibilidade · 90 dias</h2>
+        <span class="uptime-pct" id="uptimePct">&nbsp;</span>
+      </div>
+      <div class="bp uptime-card">
+        <div class="uptime-bars" id="uptimeBars"></div>
+        <div class="uptime-scale"><span id="uptimeScaleFrom">há 90 dias</span><span id="uptimeScaleTo">hoje</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Componentes</h2>
+      <div class="bp comp-list" id="components"></div>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i> Operacional</span>
+        <span><i style="background:var(--warn)"></i> Degradado</span>
+        <span><i style="background:var(--crit)"></i> Interrompido</span>
+        <span><i style="background:var(--off)"></i> Sem dado</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Incidentes e manutenções</h2>
+      <div id="events"></div>
+    </section>
+  </div>
+
+  <script>
+    "use strict";
+    // Endpoint público do painel (fonte PRIMÁRIA, tempo real). O snapshot ./status.json (commitado
+    // pelo GitHub Action) é FALLBACK off-CF. Ícones = constantes estáticas; TODO dado do feed entra
+    // no DOM só via textContent (XSS-safe).
+    const DIRECT_URL = "https://app.betalog.com.br/status-feed.json";
+    const SNAPSHOT_URL = "./status.json";
+    const STALE_MS = 60 * 60 * 1000; // o Action atualiza a ~15-45min; só >1h é "não confirmado".
+    const LAST_GOOD_KEY = "betalog:status:last-good";
+    const COMPONENT_LABEL = {
+      painel: "Painel", site: "Site institucional", ingestao: "Ingestão de dados",
+      cron: "Verificações automáticas", alertas: "Envio de alertas",
+      feed_cve: "Feed de vulnerabilidades",
+    };
+    const ORDER = ["painel", "site", "ingestao", "cron", "alertas", "feed_cve"];
+    const ICON = {
+      check: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>',
+      warncircle: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"/></svg>',
+      warn: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M236.8,188.09,149.35,36.22a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z"/></svg>',
+      wrench: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M226.76,69a8,8,0,0,0-12.84-2.88l-40.3,37.19-17.23-3.7-3.7-17.23,37.19-40.3A8,8,0,0,0,187,29.24,72,72,0,0,0,88,96a72.34,72.34,0,0,0,6,28.94L33.79,185c-.15.12-.29.26-.43.39a32,32,0,0,0,45.26,45.26c.13-.13.27-.28.39-.42L139.06,170A72,72,0,0,0,240,104,71.56,71.56,0,0,0,226.76,69Z"/></svg>',
+      minus: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M228,128a8,8,0,0,1-8,8H36a8,8,0,0,1,0-16H220A8,8,0,0,1,228,128Z"/></svg>',
+      chevron: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>',
+    };
+    const STATUS_LABEL = { operational: "Operacional", degraded_performance: "Performance degradada", partial_outage: "Interrupção parcial", major_outage: "Interrupção total", under_maintenance: "Em manutenção", unmonitored: "Sem dados" };
+    const STATUS_ICON = { operational: "check", degraded_performance: "warncircle", partial_outage: "warn", major_outage: "warn", under_maintenance: "wrench", unmonitored: "minus" };
+    const EVENT_LABEL = { investigating: "Investigando", identified: "Identificado", monitoring: "Monitorando", resolved: "Resolvido", scheduled: "Agendada", in_progress: "Em andamento", verifying: "Verificando", completed: "Concluída" };
+    const BANNER = { none: ["check", "Todos os sistemas operacionais"], minor: ["warncircle", "Degradação de performance"], major: ["warn", "Interrupção parcial em andamento"], critical: ["warn", "Interrupção crítica em andamento"], maintenance: ["wrench", "Manutenção em andamento"], stale: ["warncircle", "Não conseguimos confirmar o status"] };
+
+    const tpl = document.createElement("template");
+    function icon(name) { tpl.innerHTML = ICON[name] || ICON.minus; return tpl.content.firstElementChild.cloneNode(true); }
+    // Idade VIVA a partir de uma duração em ms (tica de 1 em 1s).
+    function relMs(ms) { const s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return "há " + s + "s"; if (s < 3600) return "há " + Math.floor(s / 60) + "min " + (s % 60) + "s"; if (s < 172800) return "há " + Math.floor(s / 3600) + "h"; return "há " + Math.floor(s / 86400) + " dias"; }
+    // Data do incidente no FUSO LOCAL do visitante (mais intuitivo que forçar UTC).
+    function whenLocal(sec) { if (!Number.isFinite(sec)) return ""; return new Date(sec * 1000).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" }); }
+
+    // Estado de carregamento: skeletons cinza, SEM cor de status e SEM texto.
+    function renderSkeletons() {
+      const c = document.getElementById("components");
+      c.replaceChildren(...ORDER.map(() => {
+        const row = document.createElement("div"); row.className = "comp-row";
+        const nm = document.createElement("div"); nm.className = "skel sk-line"; nm.style.width = "130px";
+        const pill = document.createElement("div"); pill.className = "skel"; pill.style.width = "96px"; pill.style.height = "24px";
+        row.append(nm, pill); return row;
+      }));
+      // Barras de uptime já ocupam a altura final (data-d="none" = cinza), zero layout shift ao popular.
+      const bars = document.getElementById("uptimeBars");
+      bars.replaceChildren(...Array.from({ length: 90 }, () => document.createElement("i")));
+    }
+
+    let curFeed = null, curStale = false, curPanel = null, curDirect = false, curFetchedAt = 0;
+    // Idade: no fetch DIRETO ancoramos no relógio do CLIENTE (curFetchedAt) — imune a clock-skew e ao
+    // generatedAt do servidor; reseta a cada refresh direto. No snapshot/último-bom usamos generatedAt
+    // (a idade real do dado). O contador anda mesmo sem novo fetch (honesto sobre atraso).
+    function applyBannerAge() {
+      if (!curFeed) return;
+      const ms = curDirect ? (Date.now() - curFetchedAt) : (Date.now() - new Date(curFeed.generatedAt).getTime());
+      document.getElementById("bannerSub").textContent = (curStale ? "mostrando o último dado recebido · " : "") + "atualizado " + relMs(ms);
+    }
+    function paint(feed, stale) {
+      curFeed = feed; curStale = stale;
+      document.body.classList.remove("loading");
+      const baseLvl = ["none", "minor", "major", "critical"].includes(feed.indicator) ? feed.indicator : "none";
+      // Consistência: banner reflete o pior. Manutenção em andamento (sem degradação/interrupção pior)
+      // vira estado próprio (azul) — nunca "todos operacionais" com uma linha em manutenção/degradada.
+      const lvl = stale ? "stale" : (baseLvl === "none" && feed.maintenance ? "maintenance" : baseLvl);
+      const banner = document.getElementById("banner");
+      banner.dataset.lvl = lvl;
+      document.getElementById("bannerIcon").replaceChildren(icon(BANNER[lvl][0]));
+      document.getElementById("bannerTitle").textContent = BANNER[lvl][1];
+      applyBannerAge();
+
+      const byId = new Map((Array.isArray(feed.components) ? feed.components : []).filter((c) => c && typeof c === "object").map((c) => [c.id, c]));
+      const list = document.getElementById("components");
+      list.replaceChildren(...ORDER.map((id) => {
+        let c = byId.get(id) || { id, status: "unmonitored" };
+        // painel: sobreposto pela SONDA EXTERNA (panel-history.json do Action) — o Worker não mede a si
+        // mesmo (self-fetch=522), então a verdade do painel vem de fora, não do feed.
+        if (id === "painel" && curPanel) c = { id, status: curPanel.status, detail: curPanel.detail };
+        const status = typeof c.status === "string" && STATUS_LABEL[c.status] ? c.status : "unmonitored";
+        const row = document.createElement("div"); row.className = "comp-row" + (stale ? " stale" : "");
+        const left = document.createElement("div");
+        const nm = document.createElement("div"); nm.className = "comp-name"; nm.textContent = COMPONENT_LABEL[id] || id;
+        left.appendChild(nm);
+        if (typeof c.detail === "string" && c.detail) { const d = document.createElement("div"); d.className = "comp-detail"; d.textContent = c.detail; left.appendChild(d); }
+        const pill = document.createElement("span"); pill.className = "pill"; pill.dataset.s = status;
+        // Stale: não afirmamos o status por-componente (o dado não pôde ser confirmado) — cinza "Não confirmado".
+        if (stale) { pill.append(icon("minus"), document.createTextNode("Não confirmado")); }
+        else { pill.append(icon(STATUS_ICON[status] || "minus"), document.createTextNode(STATUS_LABEL[status])); }
+        row.append(left, pill); return row;
+      }));
+
+      renderEvents(mergeHistKind(feed.incidents, "incident"), mergeHistKind(feed.maintenances, "maintenance"));
+      paintUptime();
+    }
+
+    // Histórico narrativo no GitHub (eterno). Merge com o feed ao vivo (feed ganha no mesmo id).
+    // Incidentes E manutenções convivem no mesmo arquivo; `kind` separa. Eventos em dia verde
+    // (blip curto / manutenção programada) são válidos — a cor da barra é o SLA do dia, não a
+    // ausência de registro narrativo.
+    let curHistIncidents = [];
+    function histKindOf(e) {
+      if (e && e.kind === "maintenance") return "maintenance";
+      if (e && (e.scheduledFor != null || e.status === "completed" || e.status === "scheduled" || e.status === "in_progress")) {
+        if (e.kind === "incident") return "incident";
+        if (e.startedAt == null && e.scheduledFor != null) return "maintenance";
+      }
+      return "incident";
+    }
+    function mergeHistKind(feedList, kind) {
+      const byId = new Map();
+      for (const e of (Array.isArray(curHistIncidents) ? curHistIncidents : [])) {
+        if (!e || typeof e !== "object" || typeof e.id !== "string") continue;
+        if (histKindOf(e) !== kind) continue;
+        byId.set(e.id, e);
+      }
+      for (const e of (Array.isArray(feedList) ? feedList : [])) {
+        if (e && typeof e === "object" && typeof e.id === "string") byId.set(e.id, e);
+      }
+      const since = Math.floor(Date.now() / 1000) - 90 * 86400;
+      return [...byId.values()].filter((e) => {
+        if (e.status !== "resolved" && e.status !== "completed") return true; // abertos sempre
+        const t = Number(e.resolvedAt || e.startedAt || e.scheduledFor || 0);
+        return Number.isFinite(t) && t >= since;
+      });
+    }
+    async function loadIncidentsHistory() {
+      try {
+        const r = await fetch("./incidents-history.json", { cache: "no-store" });
+        curHistIncidents = r.ok ? await r.json() : [];
+        if (!Array.isArray(curHistIncidents)) curHistIncidents = [];
+      } catch (e) { curHistIncidents = []; }
+      if (curFeed) paint(curFeed, curStale);
+    }
+
+    // Faixa de disponibilidade · 90 dias. Cores por % do dia:
+    //   ≥95% verde · 90–<95% laranja · <90% vermelho.
+    // Tooltip lista ocorrências (quedas agrupadas) + % no ar. Fonte: uptime-history.json.
+    const DAY = 86400;
+    function dayLabel(epochDay) {
+      return new Date(epochDay * 1000).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    function timeLabel(ts) {
+      return new Date(ts * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+    }
+    function utcDayStart(ts) { return Math.floor(ts / DAY) * DAY; }
+    function pctBand(pct) {
+      if (pct >= 95) return "ok";
+      if (pct >= 90) return "warn";
+      return "crit";
+    }
+    function bandLabel(band) {
+      return band === "ok" ? "Operacional" : band === "warn" ? "Degradação parcial" : "Interrupção";
+    }
+    function fmtDur(sec) {
+      if (sec < 60) return sec + "s";
+      const m = Math.floor(sec / 60), h = Math.floor(m / 60), rm = m % 60;
+      if (h <= 0) return rm + " min";
+      return h + "h" + (rm ? " " + rm + "min" : "");
+    }
+    // Agrupa sondas down consecutivas numa ocorrência (início → fim + duração).
+    function dayOccurrences(daySamples) {
+      const sorted = daySamples.slice().sort((a, b) => a.ts - b.ts);
+      const occ = [];
+      let cur = null;
+      for (const s of sorted) {
+        if (s.up === true) {
+          if (cur) { occ.push(cur); cur = null; }
+          continue;
+        }
+        if (!cur) cur = { start: s.ts, end: s.ts, downs: 1, ms: s.ms || 0 };
+        else { cur.end = s.ts; cur.downs++; if (s.ms) cur.ms = s.ms; }
+      }
+      if (cur) occ.push(cur);
+      return occ;
+    }
+    // Tooltip único (reusado): translada entre barras; só some ao sair da faixa.
+    let tipEl = null, tipDay = null, tipHot = null;
+    const dayMeta = new Map(); // dayStart → { el, samples, pct, band }
+    function ensureTip() {
+      if (tipEl) return tipEl;
+      tipEl = document.createElement("div");
+      tipEl.className = "uptime-tip";
+      tipEl.setAttribute("role", "tooltip");
+      tipEl.hidden = true;
+      document.body.appendChild(tipEl);
+      return tipEl;
+    }
+    function hideTip() {
+      if (!tipEl) return;
+      tipEl.classList.remove("on");
+      tipEl.hidden = true;
+      tipDay = null;
+      if (tipHot) { tipHot.classList.remove("is-hot"); tipHot = null; }
+    }
+    function placeTip(bar) {
+      const tip = ensureTip();
+      const r = bar.getBoundingClientRect();
+      const tw = tip.offsetWidth || 240;
+      let left = r.left + r.width / 2 - tw / 2;
+      if (left < 8) left = 8;
+      if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+      const top = r.bottom + 12; // SEMPRE abaixo da barra; o caret aponta pra cima, exatamente pra ela.
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+      const caret = tip.querySelector(".tip-caret");
+      if (caret) {
+        let cx = r.left + r.width / 2 - left; // centro da barra, relativo ao tooltip
+        cx = Math.max(12, Math.min(tw - 12, cx));
+        caret.style.left = cx + "px";
+      }
+    }
+    function fillTip(dayStart, daySamples, pct, band) {
+      const tip = ensureTip();
+      tip.replaceChildren();
+      const caret = document.createElement("span"); caret.className = "tip-caret";
+      const date = document.createElement("div"); date.className = "tip-date"; date.textContent = dayLabel(dayStart);
+      const n = daySamples.length;
+      const st = document.createElement("div"); st.className = "tip-status";
+      // Dia SEM amostra NUNCA afirma "Operacional" (o `|| "ok"` antigo inventava verde num dia vazio,
+      // contradizendo o próprio "sem dado" logo abaixo). Sem sonda = "Sem dados", cinza, honesto.
+      if (!n) { st.dataset.d = "off"; st.append(icon("minus"), document.createTextNode("Sem dados")); }
+      else { st.dataset.d = band || "ok"; st.append(icon(band === "ok" ? "check" : band === "warn" ? "warncircle" : "warn"), document.createTextNode(bandLabel(band || "ok"))); }
+      // "Relacionado": incidentes E manutenções que tocam o dia — inclusive em barra verde
+      // (blip curto ou janela programada não derrubam o % do dia pra laranja/vermelho).
+      const related = [];
+      const pool = [].concat(
+        (curFeed && curFeed.incidents) || [],
+        (curFeed && curFeed.maintenances) || [],
+        curHistIncidents || []
+      );
+      {
+        const dayEnd = dayStart + DAY;
+        const seen = new Set();
+        for (const e of pool) {
+          if (!e || typeof e !== "object" || !e.id || seen.has(e.id)) continue;
+          const a = Number(e.startedAt || e.scheduledFor);
+          const b = Number(e.resolvedAt || e.scheduledUntil || a);
+          if (!Number.isFinite(a)) continue;
+          if (a < dayEnd && (Number.isFinite(b) ? b : a) >= dayStart) {
+            seen.add(e.id);
+            related.push(e);
+          }
+        }
+      }
+
+      const pctLine = document.createElement("div"); pctLine.className = "tip-pct";
+      // Enxuto (padrão Statuspage). Em dia verde COM evento relacionado, não dizer "sem interrupções".
+      if (!n) pctLine.textContent = "nenhuma sonda neste dia";
+      else if (band === "ok" && !related.length) pctLine.textContent = "Sem interrupções · " + pct + "% no ar";
+      else pctLine.textContent = pct + "% no ar";
+      tip.append(caret, date, st, pctLine);
+
+      if (related.length) {
+        const rlab = document.createElement("div"); rlab.className = "tip-occ-label"; rlab.style.marginTop = "10px"; rlab.textContent = "Relacionado";
+        tip.appendChild(rlab);
+        const list = document.createElement("div"); list.className = "tip-occ";
+        for (const e of related.slice(0, 4)) {
+          const isMaint = histKindOf(e) === "maintenance";
+          const item = document.createElement("div"); item.className = "tip-occ-item";
+          const dot = document.createElement("span");
+          dot.className = "tip-occ-dot " + (isMaint ? "maint" : (e.impact === "major" || e.impact === "critical" ? "" : "warn"));
+          const body = document.createElement("div"); body.className = "tip-occ-body";
+          const title = document.createElement("b"); title.textContent = typeof e.title === "string" ? e.title : "Evento";
+          const sub = document.createElement("span");
+          const when = Number(e.startedAt || e.scheduledFor);
+          sub.textContent = (isMaint ? "Manutenção" : "Incidente") + (Number.isFinite(when) ? " · " + timeLabel(when) : "");
+          body.append(title, sub);
+          item.append(dot, body);
+          list.appendChild(item);
+        }
+        tip.appendChild(list);
+      }
+    }
+    function activateDay(bar) {
+      if (!bar || !bar.dataset.day) return;
+      const d = Number(bar.dataset.day);
+      const meta = dayMeta.get(d);
+      if (!meta) return;
+      if (tipHot && tipHot !== bar) tipHot.classList.remove("is-hot");
+      bar.classList.add("is-hot");
+      tipHot = bar;
+      if (tipDay !== d) {
+        tipDay = d;
+        fillTip(d, meta.samples, meta.pct, meta.band);
+      }
+      const tip = ensureTip();
+      tip.hidden = false;
+      tip.classList.add("on");
+      placeTip(bar);
+    }
+
+    function renderUptime(samples) {
+      const bars = document.getElementById("uptimeBars");
+      const nowS = Math.floor(Date.now() / 1000);
+      const todayStart = utcDayStart(nowS);
+      const days = []; for (let i = 89; i >= 0; i--) days.push(todayStart - i * DAY);
+      const byDay = new Map(days.map((d) => [d, []]));
+      for (const s of (Array.isArray(samples) ? samples : [])) {
+        if (!s || typeof s.ts !== "number") continue;
+        const bucket = byDay.get(utcDayStart(s.ts));
+        if (bucket) bucket.push(s);
+      }
+      dayMeta.clear();
+      tipDay = null;
+      let totUp = 0, tot = 0, daysWithData = 0;
+      bars.replaceChildren(...days.map((d) => {
+        const daySamples = byDay.get(d) || [];
+        const n = daySamples.length;
+        const ups = daySamples.filter((s) => s.up === true).length;
+        const pct = n ? Math.round((ups / n) * 1000) / 10 : null;
+        const band = pct == null ? null : pctBand(pct);
+        const i = document.createElement("i");
+        i.tabIndex = 0;
+        i.setAttribute("role", "button");
+        i.dataset.day = String(d);
+        if (band) i.dataset.d = band;
+        i.setAttribute("aria-label", dayLabel(d) + (pct != null ? ", " + pct + "% no ar" : ", sem dado"));
+        dayMeta.set(d, { el: i, samples: daySamples, pct, band });
+        if (n) { totUp += ups; tot += n; daysWithData++; }
+        i.addEventListener("focus", () => activateDay(i));
+        i.addEventListener("blur", () => { if (document.activeElement === bars || bars.contains(document.activeElement)) return; hideTip(); });
+        return i;
+      }));
+      // Delegação no container: hit-area contínua (padding = vão visual) → sem piscada entre barras.
+      bars.onpointermove = (e) => {
+        const el = e.target && e.target.closest ? e.target.closest("i") : null;
+        if (el && bars.contains(el)) activateDay(el);
+      };
+      bars.onpointerleave = () => hideTip();
+
+      document.getElementById("uptimeTitle").textContent = "Disponibilidade · 90 dias";
+      document.getElementById("uptimeScaleFrom").textContent = "há 90 dias";
+      const pctEl = document.getElementById("uptimePct");
+      if (tot === 0) {
+        pctEl.textContent = "sem amostras";
+        pctEl.style.color = "var(--muted-foreground)";
+      } else {
+        const pct = Math.round((totUp / tot) * 1000) / 10;
+        pctEl.textContent = pct + "% · " + daysWithData + (daysWithData === 1 ? " dia" : " dias");
+        pctEl.style.color = pct >= 95 ? "var(--ok)" : pct >= 90 ? "var(--warn)" : "var(--crit)";
+      }
+    }
+    let curUptimeSamples = [];
+    function paintUptime() { renderUptime(curUptimeSamples); }
+    async function loadUptime() {
+      try {
+        const r = await fetch("./uptime-history.json", { cache: "no-store" });
+        curUptimeSamples = r.ok ? await r.json() : [];
+      } catch (e) { curUptimeSamples = []; }
+      paintUptime();
+    }
+    window.addEventListener("scroll", hideTip, { passive: true });
+    window.addEventListener("resize", hideTip);
+    // Sonda EXTERNA do painel (panel-history.json, gravado pelo GitHub Action ao sondar app.betalog.com.br/).
+    // Amostra fresca (<90min, tolera a cadência do Action) manda; senão o painel fica "sem dado" (honesto).
+    async function loadPanel() {
+      try {
+        const r = await fetch("./panel-history.json", { cache: "no-store" });
+        const arr = r.ok ? await r.json() : [];
+        const last = Array.isArray(arr) && arr.length ? arr[arr.length - 1] : null;
+        if (last && typeof last.ts === "number" && Date.now() / 1000 - last.ts < 180 * 60) {
+          curPanel = last.up
+            ? { status: "operational", detail: "respondendo (sonda externa)" }
+            : { status: "major_outage", detail: "sem resposta (sonda externa)" };
+        } else curPanel = { status: "unmonitored", detail: "" };
+      } catch (e) { curPanel = null; }
+      if (curFeed) paint(curFeed, curStale);
+    }
+
+    // Linha-resumo (fechado): resolvido/concluído -> hora que resolveu; em andamento -> previsão de
+    // término (manutenção) ou status atual (incidente). É o que fica visível com a sanfona fechada.
+    function eventMeta(e, kind, closed) {
+      if (closed) {
+        const t = Number.isFinite(e.resolvedAt) ? e.resolvedAt : (e.updates && e.updates.length ? e.updates[e.updates.length - 1].createdAt : null);
+        return (kind === "maintenance" ? "Concluída em " : "Resolvido em ") + whenLocal(Number(t));
+      }
+      if (kind === "maintenance" && Number.isFinite(e.scheduledUntil)) return "Previsto até " + whenLocal(Number(e.scheduledUntil));
+      const cur = e.updates && e.updates.length ? e.updates[e.updates.length - 1].status : e.status;
+      const since = kind === "maintenance" ? e.scheduledFor : e.startedAt;
+      return (EVENT_LABEL[cur] || "Em andamento") + (Number.isFinite(since) ? " · desde " + whenLocal(Number(since)) : "");
+    }
+
+    function renderEvents(incidents, maintenances) {
+      const container = document.getElementById("events");
+      const all = [
+        ...(Array.isArray(incidents) ? incidents : []).map((e) => ({ e, kind: "incident", when: e && e.startedAt })),
+        ...(Array.isArray(maintenances) ? maintenances : []).map((e) => ({ e, kind: "maintenance", when: e && e.scheduledFor })),
+      ].filter((x) => x.e && typeof x.e === "object");
+      if (!all.length) {
+        const empty = document.createElement("div"); empty.className = "bp empty";
+        empty.append(icon("check"), Object.assign(document.createElement("div"), { textContent: "Nenhum incidente nos últimos 90 dias" }));
+        container.replaceChildren(empty); return;
+      }
+      all.sort((a, b) => (b.when || 0) - (a.when || 0));
+      container.replaceChildren(...all.map(({ e, kind }) => {
+        const closed = e.status === "resolved" || e.status === "completed";
+        const card = document.createElement("details"); card.className = "bp incident";
+        // Sanfona: fechada por padrão se resolvida/concluída (só o resumo); aberta se ainda em curso.
+        if (!closed) card.open = true;
+        const head = document.createElement("summary"); head.className = "incident-head";
+        const headline = document.createElement("div"); headline.className = "incident-headline";
+        const title = document.createElement("div"); title.className = "incident-title"; title.textContent = typeof e.title === "string" ? e.title : "—";
+        const meta = document.createElement("div"); meta.className = "incident-meta"; meta.textContent = eventMeta(e, kind, closed);
+        headline.append(title, meta);
+        const badge = document.createElement("span");
+        badge.className = "badge " + (closed ? "resolved" : (kind === "maintenance" ? "maint" : "open"));
+        badge.textContent = closed ? (kind === "maintenance" ? "Concluída" : "Resolvido") : (kind === "maintenance" ? "Manutenção" : "Em andamento");
+        const chev = icon("chevron"); chev.setAttribute("class", "chevron");
+        head.append(headline, badge, chev);
+        card.appendChild(head);
+        const body = document.createElement("div"); body.className = "incident-body";
+        if (Array.isArray(e.components) && e.components.length) {
+          const chips = document.createElement("div"); chips.className = "incident-comps";
+          for (const cid of e.components) { const ch = document.createElement("span"); ch.className = "comp-chip"; ch.textContent = COMPONENT_LABEL[cid] || cid; chips.appendChild(ch); }
+          body.appendChild(chips);
+        }
+        const tl = document.createElement("div"); tl.className = "timeline";
+        for (const u of (Array.isArray(e.updates) ? e.updates.slice().reverse() : [])) {
+          if (!u || typeof u !== "object") continue;
+          const item = document.createElement("div"); item.className = "tl-item";
+          const dot = document.createElement("span"); dot.className = "tl-dot";
+          const c = document.createElement("div"); c.className = "tl-content";
+          const b = document.createElement("b"); b.textContent = EVENT_LABEL[u.status] || String(u.status || "");
+          const tm = document.createElement("time"); tm.className = "tl-time"; tm.textContent = whenLocal(Number(u.createdAt));
+          c.append(b, document.createTextNode(" · " + (typeof u.body === "string" ? u.body : "")), tm);
+          item.append(dot, c); tl.appendChild(item);
+        }
+        body.appendChild(tl);
+        card.appendChild(body);
+        return card;
+      }));
+    }
+
+    function unavailable() {
+      document.body.classList.remove("loading");
+      document.getElementById("banner").dataset.lvl = "stale";
+      document.getElementById("bannerIcon").replaceChildren(icon("warncircle"));
+      document.getElementById("bannerTitle").textContent = "Não conseguimos confirmar o status";
+      document.getElementById("bannerSub").textContent = "sem dados recebidos até agora";
+      const empty = document.createElement("div"); empty.className = "bp empty"; empty.textContent = "Status indisponível no momento.";
+      document.getElementById("components").replaceChildren(empty);
+      document.getElementById("events").replaceChildren();
+    }
+
+    function valid(d) { return d && typeof d === "object" && Array.isArray(d.components); }
+    async function tryFetch(url, timeoutMs) {
+      const ctrl = new AbortController();
+      const t = timeoutMs ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+      try { const r = await fetch(url, { cache: "no-store", signal: ctrl.signal }); if (!r.ok) return null; const d = await r.json(); return valid(d) ? d : null; }
+      catch (e) { return null; }
+      finally { if (t) clearTimeout(t); }
+    }
+    function readLastGood() { try { const s = JSON.parse(localStorage.getItem(LAST_GOOD_KEY) || "null"); return s && valid(s.feed) ? s.feed : null; } catch (e) { return null; } }
+    function saveLastGood(feed) { try { localStorage.setItem(LAST_GOOD_KEY, JSON.stringify({ savedAt: Date.now(), feed })); } catch (e) {} }
+    function isStale(feed) { const age = Date.now() - new Date(feed.generatedAt).getTime(); return !Number.isFinite(age) || age > STALE_MS; }
+
+    async function load() {
+      // 1) DIRETO no endpoint (tempo real, teto 5s). Sucesso = FRESCO por definição (imune a
+      // clock-skew do cliente; a idade ancora no relógio local). Se demora >5s, cai pro snapshot.
+      let feed = await tryFetch(DIRECT_URL, 5000);
+      if (feed) { curDirect = true; curFetchedAt = Date.now(); saveLastGood(feed); paint(feed, false); return; }
+      // 2) snapshot do GitHub Action (off-CF, mesma info): pode estar atrasado -> isStale decide.
+      feed = await tryFetch(SNAPSHOT_URL, 8000);
+      if (feed) { curDirect = false; const stale = isStale(feed); if (!stale) saveLastGood(feed); paint(feed, stale); return; }
+      // 3) último-bom local.
+      curDirect = false;
+      const lg = readLastGood();
+      if (lg) paint(lg, true); else unavailable();
+    }
+
+    renderSkeletons();
+    load();
+    loadUptime();
+    loadIncidentsHistory();
+    loadPanel();
+    setInterval(load, 60000);
+    setInterval(loadUptime, 5 * 60000);
+    setInterval(loadIncidentsHistory, 5 * 60000);
+    setInterval(loadPanel, 60000);
+    setInterval(applyBannerAge, 1000); // o contador de segundos anda mesmo entre fetches
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      const h = document.documentElement, dark = !h.classList.contains("dark");
+      h.classList.toggle("dark", dark); h.classList.toggle("light", !dark); h.style.colorScheme = dark ? "dark" : "light";
+      try { localStorage.setItem("betalog:theme", dark ? "dark" : "light"); } catch (e) {}
+    });
+  </script>
+</body>
+</html>

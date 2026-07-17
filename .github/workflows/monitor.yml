@@ -1,0 +1,100 @@
+# Monitor da status page pública do BetaLog.
+#
+# A cada execução:
+#   1. Baixa o feed público agregado e, SÓ se for JSON válido, promove a status.json
+#      (feed inválido/indisponível = mantém o último-bom; feed != health, não conta como queda).
+#   2. Checa /health, mede o tempo de resposta e anexa {ts, up, ms} ao histórico (~90 dias).
+#   3. Commita os três arquivos de estado.
+#   4. Dead-man switch: 2 falhas CONSECUTIVAS de /health => o job falha (exit 1) DEPOIS
+#      do commit, disparando o e-mail nativo de falha do GitHub (sem secrets, sem issue).
+#
+# NOTA DE LATÊNCIA: o cron do GitHub Actions NÃO é pontual. Mesmo pedindo */10,
+# o intervalo real observado fica entre ~15 e 45 minutos em horários de pico.
+# O histórico de uptime reflete amostras nesses intervalos, não um ping por minuto.
+#
+# RETENÇÃO: uptime-history.json e panel-history.json são ETERNOS no GitHub (registro
+# público). A página só RENDERIZA a janela de 90 dias; nada é apagado ao envelhecer.
+# incidents-history.json guarda a narrativa das ocorrências (também eterna).
+
+name: monitor
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  # /health já deployado em produção (app.betalog.com.br/health responde o heartbeat do cron).
+  # Latência real do cron do GitHub Actions: ~15-45min (ver nota no topo), não os 10min pedidos.
+  schedule:
+    - cron: "*/10 * * * *"
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Atualizar feed de status (mantém último-bom se inválido)
+        run: |
+          if curl -sSf --max-time 30 -o /tmp/feed.json "https://app.betalog.com.br/status-feed.json" \
+            && jq -e '.generatedAt and (.components|type=="array") and (.components|length>0)' /tmp/feed.json > /dev/null; then
+            mv /tmp/feed.json status.json
+          else
+            echo "Feed indisponível ou com forma inesperada; mantendo o último status.json válido."
+          fi
+
+      - name: Checar /health, sondar o painel e atualizar históricos
+        run: |
+          TS=$(date -u +%s)
+
+          # 1) /health = liveness da plataforma (cron por-job + D1). Mede o Worker vivo.
+          # Retenção ETERNA no GitHub (registro público). A UI corta em 90 dias na renderização;
+          # o arquivo acumula o histórico completo — sem migrar pra outro JSON.
+          START=$(date +%s%3N)
+          if curl -sSf --max-time 30 -o /dev/null "https://app.betalog.com.br/health"; then UP=true; else UP=false; fi
+          MS=$(( $(date +%s%3N) - START ))
+          [ -f uptime-history.json ] || echo "[]" > uptime-history.json
+          jq --argjson ts "$TS" --argjson up "$UP" --argjson ms "$MS" \
+            '. + [{ts: $ts, up: $up, ms: $ms}]' \
+            uptime-history.json > uptime-history.json.tmp && mv uptime-history.json.tmp uptime-history.json
+
+          # 2) painel = sonda EXTERNA do app root. O Worker não se auto-sonda (self-fetch=522), então
+          # esta é a única forma honesta de pegar SPA/ASSETS quebrado com o Worker de pé. up = 2xx/3xx.
+          PCODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 "https://app.betalog.com.br/" || echo "000")
+          if [ "$PCODE" -ge 200 ] && [ "$PCODE" -lt 400 ]; then PUP=true; else PUP=false; fi
+          [ -f panel-history.json ] || echo "[]" > panel-history.json
+          jq --argjson ts "$TS" --argjson up "$PUP" --arg code "$PCODE" \
+            '. + [{ts: $ts, up: $up, code: ($code|tonumber)}]' \
+            panel-history.json > panel-history.json.tmp && mv panel-history.json.tmp panel-history.json
+
+          # 3) Anti-flap: contadores consecutivos SEPARADOS (health e painel); sucesso zera cada um.
+          [ -f deadman-state.json ] || echo '{"consecutiveFailures":0,"panelFailures":0}' > deadman-state.json
+          if [ "$UP" = "true" ]; then HF=0; else HF=$(( $(jq -r '.consecutiveFailures // 0' deadman-state.json) + 1 )); fi
+          if [ "$PUP" = "true" ]; then PF=0; else PF=$(( $(jq -r '.panelFailures // 0' deadman-state.json) + 1 )); fi
+          jq -n --argjson hf "$HF" --argjson pf "$PF" --argjson ts "$TS" \
+            '{consecutiveFailures: $hf, panelFailures: $pf, updatedAt: $ts}' > deadman-state.json
+
+      - name: Commitar estado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status.json uptime-history.json panel-history.json deadman-state.json
+          if git diff --cached --quiet; then
+            echo "Nada a commitar."
+          else
+            git commit -m "chore: atualiza dados de status"
+            git pull --rebase
+            git push
+          fi
+
+      # Roda DEPOIS do commit de propósito: os contadores precisam persistir antes do exit 1.
+      - name: Dead-man switch
+        run: |
+          HF=$(jq -r '.consecutiveFailures // 0' deadman-state.json)
+          PF=$(jq -r '.panelFailures // 0' deadman-state.json)
+          if [ "$HF" -ge 2 ]; then echo "::error::/health falhou $HF vezes consecutivas (plataforma/cron/D1)."; exit 1; fi
+          if [ "$PF" -ge 2 ]; then echo "::error::painel (app root) falhou $PF vezes consecutivas."; exit 1; fi
