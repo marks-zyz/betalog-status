@@ -8,9 +8,20 @@
 #   4. Dead-man switch: 2 falhas CONSECUTIVAS de /health => o job falha (exit 1) DEPOIS
 #      do commit, disparando o e-mail nativo de falha do GitHub (sem secrets, sem issue).
 #
-# NOTA DE LATÊNCIA: o cron do GitHub Actions NÃO é pontual. Mesmo pedindo */10,
-# o intervalo real observado fica entre ~15 e 45 minutos em horários de pico.
-# O histórico de uptime reflete amostras nesses intervalos, não um ping por minuto.
+# NOTA DE LATÊNCIA (MEDIDA em 25/07/2026 sobre as 1.049 amostras reais desde 19/04):
+# o cron do GitHub Actions não é apenas "não pontual" — ele é MUITO mais lento que o
+# pedido. Pedimos */10 e o intervalo real entre amostras foi: mediana 123 min, p10
+# 66 min, p90 215 min, máximo 271 min. Nunca chegou perto de 10 minutos.
+# Consequências que o código deve RESPEITAR (e a página, jamais maquiar):
+#   . a "memória" desta sonda tem resolução de ~2h, não de 10 min. As janelas de
+#     tolerância da página (3h) estão calibradas por esse número real, não pelo cron;
+#   . o dead-man exige 2 falhas CONSECUTIVAS, então o alerta chega em ~4h na média:
+#     isto é um REGISTRO histórico honesto, não um alarme de baixa latência;
+#   . queda curta (minutos) não é amostrada. Nenhuma afirmação de disponibilidade em
+#     janela curta pode se apoiar só nesta sonda.
+# Baixar para */5 NÃO resolve: o limite não é cota (repositório público tem minutos
+# ilimitados), é a prioridade best-effort do agendador do GitHub. Sonda de alta
+# frequência exigiria outro observador externo, fora do GitHub e fora da Cloudflare.
 #
 # RETENÇÃO: uptime-history.json e panel-history.json são ETERNOS no GitHub (registro
 # público). A página só RENDERIZA a janela de 90 dias; nada é apagado ao envelhecer.

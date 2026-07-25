@@ -309,13 +309,54 @@
     }
 
     let curFeed = null, curStale = false, curPanel = null, curDirect = false, curFetchedAt = 0;
-    // Idade: no fetch DIRETO ancoramos no relógio do CLIENTE (curFetchedAt) — imune a clock-skew e ao
-    // generatedAt do servidor; reseta a cada refresh direto. No snapshot/último-bom usamos generatedAt
-    // (a idade real do dado). O contador anda mesmo sem novo fetch (honesto sobre atraso).
+    // "Respondeu" NÃO é "está fresco". O carimbo tem de descrever a idade do DADO exibido, nunca o
+    // instante em que a página desenhou:
+    //   • fetch direto OK  -> relógio do cliente (imune a clock-skew), PORÉM se o `generatedAt` do
+    //     servidor for muito mais velho que isso (cache de borda servindo stale, D1 degradado gerando
+    //     feed antigo), vale a idade do DADO — responder rápido com dado velho é o pior dos mundos;
+    //   • fetch direto FALHOU -> o que está na tela veio do snapshot do Action (a "memória" de 10 em
+    //     10 min) ou do último-bom local, então o carimbo é o `generatedAt` DELE. Jamais "agora".
+    // Idade NEGATIVA = relógio do visitante adiantado: ignora (não inventa "gerado no futuro").
+    const DADO_VELHO_MS = 5 * 60 * 1000; // folga grande sobre o cache de 20s do endpoint
+    function idadeDoDado(feed) {
+      const g = new Date(feed && feed.generatedAt).getTime();
+      if (!Number.isFinite(g)) return null;
+      const age = Date.now() - g;
+      return age > 0 ? age : null;
+    }
+    // O que a sonda EXTERNA (GitHub Action, fora da Cloudflare) viu por último. É a testemunha
+    // confiável: o fetch do navegador do visitante pode falhar por rede/DNS/bloqueador, e isso NÃO é
+    // evidência de queda. Quem tem autoridade pra dizer "caiu" é a sonda externa, não este browser.
+    function ultimaSondaExterna() {
+      const arr = curUptimeSamples;
+      if (!Array.isArray(arr) || !arr.length) return null;
+      const last = arr[arr.length - 1];
+      if (!last || typeof last.ts !== "number") return null;
+      const idadeMs = Date.now() - last.ts * 1000;
+      if (!(idadeMs >= 0) || idadeMs > 3 * 60 * 60 * 1000) return null; // amostra velha não testemunha
+      return { up: !!last.up, idadeMs };
+    }
     function applyBannerAge() {
       if (!curFeed) return;
-      const ms = curDirect ? (Date.now() - curFetchedAt) : (Date.now() - new Date(curFeed.generatedAt).getTime());
-      document.getElementById("bannerSub").textContent = (curStale ? "mostrando o último dado recebido · " : "") + "atualizado " + relMs(ms);
+      let ms;
+      if (curDirect) {
+        const dado = idadeDoDado(curFeed);
+        ms = dado !== null && dado > DADO_VELHO_MS ? dado : Date.now() - curFetchedAt;
+      } else {
+        ms = Date.now() - new Date(curFeed.generatedAt).getTime();
+      }
+      let txt = (curStale ? "mostrando o último dado recebido · " : "") + "atualizado " + relMs(ms);
+      // Não falamos com a fonte da verdade agora: dizer o que a testemunha externa viu separa
+      // "a plataforma caiu" de "esta máquina não alcançou a plataforma".
+      if (!curDirect) {
+        const sonda = ultimaSondaExterna();
+        if (sonda) {
+          txt += sonda.up
+            ? " · não confirmamos daqui agora; a sonda externa alcançou a plataforma " + relMs(sonda.idadeMs)
+            : " · a sonda externa também não alcançou a plataforma " + relMs(sonda.idadeMs);
+        }
+      }
+      document.getElementById("bannerSub").textContent = txt;
     }
     function paint(feed, stale) {
       curFeed = feed; curStale = stale;
@@ -719,7 +760,16 @@
       // 1) DIRETO no endpoint (tempo real, teto 5s). Sucesso = FRESCO por definição (imune a
       // clock-skew do cliente; a idade ancora no relógio local). Se demora >5s, cai pro snapshot.
       let feed = await tryFetch(DIRECT_URL, 5000);
-      if (feed) { curDirect = true; curFetchedAt = Date.now(); saveLastGood(feed); paint(feed, false); return; }
+      // Chegar não basta: se o dado que veio foi GERADO há mais de STALE_MS, ele é velho do mesmo
+      // jeito (borda servindo cache stale, D1 degradado). O frescor é do DADO, não do transporte —
+      // então o mesmo isStale() do snapshot vale aqui. Só não salvamos como "último-bom" nesse caso.
+      if (feed) {
+        curDirect = true; curFetchedAt = Date.now();
+        const velho = isStale(feed);
+        if (!velho) saveLastGood(feed);
+        paint(feed, velho);
+        return;
+      }
       // 2) snapshot do GitHub Action (off-CF, mesma info): pode estar atrasado -> isStale decide.
       feed = await tryFetch(SNAPSHOT_URL, 8000);
       if (feed) { curDirect = false; const stale = isStale(feed); if (!stale) saveLastGood(feed); paint(feed, stale); return; }
