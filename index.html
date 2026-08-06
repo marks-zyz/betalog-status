@@ -249,6 +249,7 @@
         <span><i style="background:var(--ok)"></i> Operacional</span>
         <span><i style="background:var(--warn)"></i> Degradado</span>
         <span><i style="background:var(--crit)"></i> Interrompido</span>
+        <span><i style="background:hsl(135 65% 30%)"></i> Tom escuro = menos medições</span>
         <span><i style="background:var(--off)"></i> Sem dado</span>
       </div>
     </section>
@@ -466,7 +467,42 @@
     // no artefato que MAIS precisa de confiança, que é o registro público de 90 dias.
     // Limiar de 6h calibrado contra dado real, não chute: o MAIOR intervalo entre sondas consecutivas em
     // 1.206 amostras (19/04 a 06/08) foi 270min (4,5h). 6h só dispara em dia genuinamente descoberto.
+    // DUAS DIMENSÕES numa barra só, porque o dia tem duas perguntas independentes: "caiu?" e "o quanto
+    // a gente estava olhando?". Encoding: MATIZ = severidade, LUMINOSIDADE = confiança.
+    //   . matiz caminha verde -> amarelo -> vermelho de forma CONTÍNUA (nada de 3 degraus: 94,9% e 90,1%
+    //     eram a mesma laranja e não são a mesma coisa);
+    //   . o tom escurece conforme a cobertura cai — dia sem falha mas pouco medido fica verde ESCURO.
+    // Cinza aqui era erro meu: jogava fora informação real. 6 medições sem falha É sinal — sinal fraco,
+    // não sinal ausente. Cinza fica só pro dia que NUNCA foi sondado, onde não há mesmo o que dizer.
     const COV_GAP_S = 6 * 3600;
+    // Cobertura: 1 - (maior buraco / parte já transcorrida do dia). Proxy honesto e barato — um buraco
+    // de 9h num dia de 23h derruba a confiança pra ~0,6 sem precisar modelar a distribuição das sondas.
+    function dayCoverage(dayStart, samples) {
+      const fim = Math.min(dayStart + DAY, Math.floor(Date.now() / 1000));
+      const janela = fim - dayStart;
+      if (janela <= 0) return 1;
+      if (!samples.length) return 0;
+      return Math.max(0, Math.min(1, 1 - dayGapMax(dayStart, samples) / janela));
+    }
+    // Âncoras do matiz por %: 100 verde · 95 amarelo · 90 âmbar · <=80 vermelho. Interpolação linear
+    // entre âncoras vizinhas (a rampa 135->0 passa pelo amarelo naturalmente, sem cor inventada).
+    const RAMPA_MATIZ = [[100, 135], [97, 90], [95, 60], [90, 28], [80, 0]];
+    function matizPct(pct) {
+      const p = Math.max(0, Math.min(100, pct));
+      if (p >= 100) return 135;
+      for (let i = 0; i < RAMPA_MATIZ.length - 1; i++) {
+        const [pa, ha] = RAMPA_MATIZ[i], [pb, hb] = RAMPA_MATIZ[i + 1];
+        if (p <= pa && p >= pb) return hb + ((p - pb) / (pa - pb)) * (ha - hb);
+      }
+      return 0;
+    }
+    function corDoDia(pct, cov) {
+      const h = matizPct(pct);
+      const t = (135 - h) / 135;                 // 0 = verde puro, 1 = vermelho
+      const s = 65 + t * 30;                     // vermelho/âmbar pedem mais saturação pra ler igual
+      const l = (48 + t * 12) * (0.55 + 0.45 * Math.max(0, Math.min(1, cov)));
+      return "hsl(" + h.toFixed(0) + " " + s.toFixed(0) + "% " + l.toFixed(0) + "%)";
+    }
     // Maior trecho do dia SEM nenhuma sonda, contando as bordas (início do dia → 1ª amostra, última
     // amostra → fim do dia). No dia de hoje o fim é AGORA: o futuro ainda não é buraco de cobertura.
     function dayGapMax(dayStart, samples) {
@@ -547,10 +583,10 @@
       // contradizendo o próprio "sem dado" logo abaixo). Sem sonda = "Sem dados", cinza, honesto.
       const gapDia = dayGapMax(dayStart, daySamples);
       const descoberto = n > 0 && gapDia >= COV_GAP_S;
+      // O RÓTULO diz o que foi observado ("Operacional" — nenhuma sonda falhou). A ressalva de cobertura
+      // vai na linha de baixo e no TOM da barra, não no rótulo: chamar de "Cobertura parcial" um dia sem
+      // nenhuma falha era rebaixar o veredito por causa da nossa amostragem, não da saúde do produto.
       if (!n) { st.dataset.d = "off"; st.append(icon("minus"), document.createTextNode("Sem dados")); }
-      // Sondado, mas com buraco grande: não afirma nem saúde nem queda. O `band || "ok"` abaixo diria
-      // "Operacional" (band vem null pra dia descoberto), que é justamente a mentira que se quer evitar.
-      else if (descoberto) { st.dataset.d = "off"; st.append(icon("minus"), document.createTextNode("Cobertura parcial")); }
       else { st.dataset.d = band || "ok"; st.append(icon(band === "ok" ? "check" : band === "warn" ? "warncircle" : "warn"), document.createTextNode(bandLabel(band || "ok"))); }
       // "Relacionado": incidentes E manutenções que tocam o dia — inclusive em barra verde
       // (blip curto ou janela programada não derrubam o % do dia pra laranja/vermelho).
@@ -582,9 +618,8 @@
       // a sugestão a mais — e num dia descoberto o buraco aparece explícito.
       const medicoes = n + (n === 1 ? " medição" : " medições");
       if (!n) pctLine.textContent = "nenhuma medição neste dia";
-      else if (descoberto) pctLine.textContent = pct + "% no ar em " + medicoes + " · até " + fmtDur(gapDia) + " sem medir";
-      else if (band === "ok" && !related.length) pctLine.textContent = "Sem interrupções em " + medicoes;
-      else pctLine.textContent = pct + "% no ar em " + medicoes;
+      else if (band === "ok" && !related.length && !descoberto) pctLine.textContent = "Sem interrupções em " + medicoes;
+      else pctLine.textContent = pct + "% no ar em " + medicoes + (descoberto ? " · até " + fmtDur(gapDia) + " sem medir" : "");
       tip.append(caret, date, st, pctLine);
 
       if (related.length) {
@@ -645,16 +680,17 @@
         const n = daySamples.length;
         const ups = daySamples.filter((s) => s.up === true).length;
         const pct = n ? Math.round((ups / n) * 1000) / 10 : null;
-        // Dia mal coberto NÃO vira verde: sem medição não há o que afirmar (ver COV_GAP_S). Cai no mesmo
-        // cinza do dia vazio — só o texto distingue "nunca sondado" de "sondado, mas com buraco grande".
-        const descoberto = n > 0 && dayGapMax(d, daySamples) >= COV_GAP_S;
-        const band = pct == null || descoberto ? null : pctBand(pct);
+        const cov = dayCoverage(d, daySamples);
+        const band = pct == null ? null : pctBand(pct);
         const i = document.createElement("i");
         i.tabIndex = 0;
         i.setAttribute("role", "button");
         i.dataset.day = String(d);
-        if (band) i.dataset.d = band;
-        i.setAttribute("aria-label", dayLabel(d) + (band ? ", " + pct + "% no ar" : descoberto ? ", cobertura parcial" : ", sem dado"));
+        // data-d segue existindo pro tooltip e pro a11y; a COR da barra vem do inline (2 dimensões),
+        // que sobrepõe as regras de banda do CSS. Dia sem amostra não recebe cor: fica no cinza base.
+        if (band) { i.dataset.d = band; i.style.backgroundColor = corDoDia(pct, cov); }
+        const covTxt = n && cov < 0.75 ? ", cobertura de " + Math.round(cov * 100) + "%" : "";
+        i.setAttribute("aria-label", dayLabel(d) + (pct != null ? ", " + pct + "% no ar" + covTxt : ", sem dado"));
         dayMeta.set(d, { el: i, samples: daySamples, pct, band });
         if (n) { totUp += ups; tot += n; daysWithData++; }
         i.addEventListener("focus", () => activateDay(i));
