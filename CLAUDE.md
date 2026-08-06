@@ -43,10 +43,17 @@ GitHub Actions) — assim uma queda da própria Cloudflare não derruba junto o 
   1. **Fetch DIRETO** de `https://app.betalog.com.br/status-feed.json` (tempo real, teto de 5s).
   2. Fallback: `./status.json` (snapshot commitado pelo Action).
   3. Fallback: último-bom em `localStorage`.
-- **`.github/workflows/monitor.yml`** — o Action (a cada ~15-45min real; o GitHub estrangula o cron do
-  free tier): baixa o feed → `status.json`; sonda `/health` → `uptime-history.json`; sonda o painel
-  (`app.betalog.com.br/`) → `panel-history.json`; **dead-man** (2 falhas consecutivas de `/health` OU do
-  painel → `exit 1` → e-mail nativo do GitHub, sem secret).
+- **`.github/workflows/monitor.yml`** — o Action (pede `*/10`, mas o GitHub estrangula o cron do free
+  tier: **mediana 119min, p90 213min, máx 270min**, medido sobre as 1.206 amostras de 19/04 a 06/08 —
+  a NOTA DE LATÊNCIA no topo do próprio workflow tem a mesma medição de 25/07; o "~15-45min" que este
+  parágrafo trazia antes era 3x otimista e nunca existiu): baixa o feed → `status.json`; sonda `/health`
+  → `uptime-history.json`; sonda o painel (`app.betalog.com.br/`) → `panel-history.json`; **dead-man**
+  (2 falhas consecutivas de `/health` OU do painel → `exit 1` → e-mail nativo do GitHub, sem secret).
+  **Consequência medida:** a tolerância de 180min do componente "Painel" (`index.html`) NÃO cobre o p90
+  de 213min — o item foi a "Sem dados" **274 vezes** (6,4 dias, 5,8% do período), em episódios curtos de
+  ~33min que ninguém via. Aumentar a tolerância não resolve (afirmaria verde com medição de 4h); o que
+  resolve é uma SEGUNDA testemunha fora do GitHub. Nunca calibrar janela desta sonda por estimativa:
+  medir de novo no `panel-history.json` antes de escolher qualquer número.
 - **`status.json` / `uptime-history.json` / `panel-history.json`** — dados públicos agregados, escritos
   pelo Action. `deadman-state.json` = contador anti-flap.
 - **`CNAME`** — `status.betalog.com.br` (GitHub Pages custom domain, DNS-only na Cloudflare).
