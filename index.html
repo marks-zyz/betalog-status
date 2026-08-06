@@ -457,6 +457,27 @@
     function bandLabel(band) {
       return band === "ok" ? "Operacional" : band === "warn" ? "Degradação parcial" : "Interrupção";
     }
+    // COBERTURA — o % do dia é a taxa de acerto das SONDAS que existiram, não a disponibilidade do dia.
+    // A sonda roda ~12x/dia (o cron do free tier entrega mediana de 119min, não os 10min pedidos), então
+    // um dia "100%" pode ser 6 medições pontuais. Em 06/08/2026 foi exatamente isso: 6 amostras, todas
+    // antes das 14:09, o GitHub Actions caiu, a plataforma teve uma queda real de D1 às ~18:25 — e a
+    // barra pintava o dia de verde com "Sem interrupções · 100% no ar". Ausência de medição virando
+    // prova de saúde é a mesma falha que a auditoria de fail-open removeu do feed; aqui ela sobreviveu
+    // no artefato que MAIS precisa de confiança, que é o registro público de 90 dias.
+    // Limiar de 6h calibrado contra dado real, não chute: o MAIOR intervalo entre sondas consecutivas em
+    // 1.206 amostras (19/04 a 06/08) foi 270min (4,5h). 6h só dispara em dia genuinamente descoberto.
+    const COV_GAP_S = 6 * 3600;
+    // Maior trecho do dia SEM nenhuma sonda, contando as bordas (início do dia → 1ª amostra, última
+    // amostra → fim do dia). No dia de hoje o fim é AGORA: o futuro ainda não é buraco de cobertura.
+    function dayGapMax(dayStart, samples) {
+      const fim = Math.min(dayStart + DAY, Math.floor(Date.now() / 1000));
+      if (fim <= dayStart) return 0;
+      const ts = samples.map((s) => s.ts).filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+      if (!ts.length) return fim - dayStart;
+      let maior = ts[0] - dayStart;
+      for (let i = 1; i < ts.length; i++) maior = Math.max(maior, ts[i] - ts[i - 1]);
+      return Math.max(maior, fim - ts[ts.length - 1]);
+    }
     function fmtDur(sec) {
       if (sec < 60) return sec + "s";
       const m = Math.floor(sec / 60), h = Math.floor(m / 60), rm = m % 60;
@@ -524,7 +545,12 @@
       const st = document.createElement("div"); st.className = "tip-status";
       // Dia SEM amostra NUNCA afirma "Operacional" (o `|| "ok"` antigo inventava verde num dia vazio,
       // contradizendo o próprio "sem dado" logo abaixo). Sem sonda = "Sem dados", cinza, honesto.
+      const gapDia = dayGapMax(dayStart, daySamples);
+      const descoberto = n > 0 && gapDia >= COV_GAP_S;
       if (!n) { st.dataset.d = "off"; st.append(icon("minus"), document.createTextNode("Sem dados")); }
+      // Sondado, mas com buraco grande: não afirma nem saúde nem queda. O `band || "ok"` abaixo diria
+      // "Operacional" (band vem null pra dia descoberto), que é justamente a mentira que se quer evitar.
+      else if (descoberto) { st.dataset.d = "off"; st.append(icon("minus"), document.createTextNode("Cobertura parcial")); }
       else { st.dataset.d = band || "ok"; st.append(icon(band === "ok" ? "check" : band === "warn" ? "warncircle" : "warn"), document.createTextNode(bandLabel(band || "ok"))); }
       // "Relacionado": incidentes E manutenções que tocam o dia — inclusive em barra verde
       // (blip curto ou janela programada não derrubam o % do dia pra laranja/vermelho).
@@ -551,9 +577,14 @@
 
       const pctLine = document.createElement("div"); pctLine.className = "tip-pct";
       // Enxuto (padrão Statuspage). Em dia verde COM evento relacionado, não dizer "sem interrupções".
-      if (!n) pctLine.textContent = "nenhuma sonda neste dia";
-      else if (band === "ok" && !related.length) pctLine.textContent = "Sem interrupções · " + pct + "% no ar";
-      else pctLine.textContent = pct + "% no ar";
+      // A frase declara a BASE da medição. "100% no ar" sozinho sugere o dia inteiro auditado; o que
+      // existe são N medições pontuais. Dizer "sem interrupções em 12 medições" é a mesma verdade sem
+      // a sugestão a mais — e num dia descoberto o buraco aparece explícito.
+      const medicoes = n + (n === 1 ? " medição" : " medições");
+      if (!n) pctLine.textContent = "nenhuma medição neste dia";
+      else if (descoberto) pctLine.textContent = pct + "% no ar em " + medicoes + " · até " + fmtDur(gapDia) + " sem medir";
+      else if (band === "ok" && !related.length) pctLine.textContent = "Sem interrupções em " + medicoes;
+      else pctLine.textContent = pct + "% no ar em " + medicoes;
       tip.append(caret, date, st, pctLine);
 
       if (related.length) {
@@ -614,13 +645,16 @@
         const n = daySamples.length;
         const ups = daySamples.filter((s) => s.up === true).length;
         const pct = n ? Math.round((ups / n) * 1000) / 10 : null;
-        const band = pct == null ? null : pctBand(pct);
+        // Dia mal coberto NÃO vira verde: sem medição não há o que afirmar (ver COV_GAP_S). Cai no mesmo
+        // cinza do dia vazio — só o texto distingue "nunca sondado" de "sondado, mas com buraco grande".
+        const descoberto = n > 0 && dayGapMax(d, daySamples) >= COV_GAP_S;
+        const band = pct == null || descoberto ? null : pctBand(pct);
         const i = document.createElement("i");
         i.tabIndex = 0;
         i.setAttribute("role", "button");
         i.dataset.day = String(d);
         if (band) i.dataset.d = band;
-        i.setAttribute("aria-label", dayLabel(d) + (pct != null ? ", " + pct + "% no ar" : ", sem dado"));
+        i.setAttribute("aria-label", dayLabel(d) + (band ? ", " + pct + "% no ar" : descoberto ? ", cobertura parcial" : ", sem dado"));
         dayMeta.set(d, { el: i, samples: daySamples, pct, band });
         if (n) { totUp += ups; tot += n; daysWithData++; }
         i.addEventListener("focus", () => activateDay(i));
