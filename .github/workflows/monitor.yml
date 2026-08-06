@@ -35,9 +35,17 @@ permissions:
 on:
   workflow_dispatch:
   # /health já deployado em produção (app.betalog.com.br/health responde o heartbeat do cron).
-  # Latência real do cron do GitHub Actions: ~15-45min (ver nota no topo), não os 10min pedidos.
+  # Latência real: ver NOTA DE LATÊNCIA no topo (mediana 119min, p90 213min) — NÃO os 10min pedidos.
+  #
+  # Minutos DESLOCADOS (3,13,...) em vez de "*/10", por recomendação explícita da doc do GitHub:
+  # "The schedule event can be delayed during periods of high loads of GitHub Actions workflow runs.
+  #  High load times include the start of every hour. If the load is sufficiently high enough, some
+  #  queued jobs may be dropped. To decrease the chance of delay, schedule your workflow to run at a
+  #  different time of the hour." — "*/10" caía em :00, o pior minuto possível, e ainda por cima em
+  # todos os múltiplos redondos. Não pedir MENOS que 10min: o piso do GitHub é 5min, mas pedimos 10 e
+  # recebemos 119 de mediana — o gargalo é o estrangulamento do free tier, não o que a gente pede.
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "3,13,23,33,43,53 * * * *"
 
 concurrency:
   group: monitor
