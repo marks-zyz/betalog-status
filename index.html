@@ -375,8 +375,12 @@
       const list = document.getElementById("components");
       list.replaceChildren(...ORDER.map((id) => {
         let c = byId.get(id) || { id, status: "unmonitored" };
-        // painel: sobreposto pela SONDA EXTERNA (panel-history.json do Action) — o Worker não mede a si
-        // mesmo (self-fetch=522), então a verdade do painel vem de fora, não do feed.
+        // painel: a sonda externa (panel-history.json do Action) SOBREPÕE o feed quando é FRESCA —
+        // alcance externo real ganha de afirmação interna. Sonda velha => curPanel=null => cai no que o
+        // feed diz, que desde 08/2026 NÃO é mais um "unmonitored" chapado: o Worker verifica de dentro
+        // a integridade do que serve (bundle no binding ASSETS, que não sofre o 522 do self-fetch).
+        // Forçar "sem dado" aqui jogava fora essa testemunha e deixava o item mudo sempre que o GitHub
+        // atrasava — 274 vezes desde abril, 5,8% do período.
         if (id === "painel" && curPanel) c = { id, status: curPanel.status, detail: curPanel.detail };
         const status = typeof c.status === "string" && STATUS_LABEL[c.status] ? c.status : "unmonitored";
         const row = document.createElement("div"); row.className = "comp-row" + (stale ? " stale" : "");
@@ -664,7 +668,7 @@
           curPanel = last.up
             ? { status: "operational", detail: "respondendo (sonda externa)" }
             : { status: "major_outage", detail: "sem resposta (sonda externa)" };
-        } else curPanel = { status: "unmonitored", detail: "" };
+        } else curPanel = null; // sonda velha = SEM sobreposição (não force "sem dado": o feed sabe algo)
       } catch (e) { curPanel = null; }
       if (curFeed) paint(curFeed, curStale);
     }
