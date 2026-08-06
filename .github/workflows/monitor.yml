@@ -47,7 +47,9 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v7 (jul/2026). O v4 roda em Node 20, depreciado nos runners: o GitHub já o força
+      # a Node 24 e imprime aviso a cada run — um dia o forçado vira quebrado.
+      - uses: actions/checkout@v7
 
       - name: Atualizar feed de status (mantém último-bom se inválido)
         run: |
