@@ -92,12 +92,18 @@ jobs:
             '. + [{ts: $ts, up: $up, code: ($code|tonumber)}]' \
             panel-history.json > panel-history.json.tmp && mv panel-history.json.tmp panel-history.json
 
-          # 3) Anti-flap: contadores consecutivos SEPARADOS (health e painel); sucesso zera cada um.
+          # 3) O monitor monitora A SI MESMO: sonda a própria página pública. Sem isto, Pages
+          # quebrado (CNAME, deploy, DNS) fica invisível — o Action segue verde medindo os outros.
+          SCODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 "https://status.betalog.com.br/" || echo "000")
+          if [ "$SCODE" -ge 200 ] && [ "$SCODE" -lt 400 ]; then SUP=true; else SUP=false; fi
+
+          # 4) Anti-flap: contadores consecutivos SEPARADOS (health, painel, self); sucesso zera cada um.
           [ -f deadman-state.json ] || echo '{"consecutiveFailures":0,"panelFailures":0}' > deadman-state.json
           if [ "$UP" = "true" ]; then HF=0; else HF=$(( $(jq -r '.consecutiveFailures // 0' deadman-state.json) + 1 )); fi
           if [ "$PUP" = "true" ]; then PF=0; else PF=$(( $(jq -r '.panelFailures // 0' deadman-state.json) + 1 )); fi
-          jq -n --argjson hf "$HF" --argjson pf "$PF" --argjson ts "$TS" \
-            '{consecutiveFailures: $hf, panelFailures: $pf, updatedAt: $ts}' > deadman-state.json
+          if [ "$SUP" = "true" ]; then SF=0; else SF=$(( $(jq -r '.selfFailures // 0' deadman-state.json) + 1 )); fi
+          jq -n --argjson hf "$HF" --argjson pf "$PF" --argjson sf "$SF" --argjson ts "$TS" \
+            '{consecutiveFailures: $hf, panelFailures: $pf, selfFailures: $sf, updatedAt: $ts}' > deadman-state.json
 
       - name: Commitar estado
         run: |
@@ -117,5 +123,7 @@ jobs:
         run: |
           HF=$(jq -r '.consecutiveFailures // 0' deadman-state.json)
           PF=$(jq -r '.panelFailures // 0' deadman-state.json)
+          SF=$(jq -r '.selfFailures // 0' deadman-state.json)
           if [ "$HF" -ge 2 ]; then echo "::error::/health falhou $HF vezes consecutivas (plataforma/cron/D1)."; exit 1; fi
           if [ "$PF" -ge 2 ]; then echo "::error::painel (app root) falhou $PF vezes consecutivas."; exit 1; fi
+          if [ "$SF" -ge 2 ]; then echo "::error::a PRÓPRIA status page (status.betalog.com.br) falhou $SF vezes consecutivas (Pages/CNAME/DNS)."; exit 1; fi
